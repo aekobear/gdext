@@ -240,3 +240,21 @@ impl FromGodot for *const std::ffi::c_void {
         Some(via as Self)
     }
 }
+
+// mut void* is used by ScriptExtension::instance_create()
+
+impl GodotConvert for *mut std::ffi::c_void {
+    type Via = i64;
+}
+
+impl ToGodot for *mut std::ffi::c_void {
+    fn to_godot(&self) -> Self::Via {
+        *self as i64
+    }
+}
+
+impl FromGodot for *mut std::ffi::c_void {
+    fn try_from_godot(via: Self::Via) -> Option<Self> {
+        Some(via as Self)
+    }
+}
