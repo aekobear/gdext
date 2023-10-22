@@ -319,7 +319,7 @@ impl<T: GodotClass> Gd<T> {
     }
 
     #[doc(hidden)]
-    pub(crate) fn obj_sys(&self) -> sys::GDExtensionObjectPtr {
+    pub fn obj_sys(&self) -> sys::GDExtensionObjectPtr {
         self.raw.obj_sys()
     }
 
