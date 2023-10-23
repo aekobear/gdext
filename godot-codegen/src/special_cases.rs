@@ -84,7 +84,6 @@ pub(crate) fn is_class_deleted(class_name: &TyName) -> bool {
         // Only on WASM.
         | "JavaScriptBridge"
         | "JavaScriptObject"
-        | "ThemeDB" 
 
         // Thread APIs.
         | "Thread"

@@ -202,8 +202,9 @@ pub fn make_sname_ptr(identifier: &str) -> TokenStream {
 }
 
 pub fn get_api_level(class: &Class) -> ClassCodegenLevel {
-    if class.name == "ThemeDB" {
+    if cfg!(before_api = "4.2") && class.name == "ThemeDB" {
         // registered in C++ register_scene_singletons(), after MODULE_INITIALIZATION_LEVEL_EDITOR happens.
+        // fixed since 4.2 (https://github.com/godotengine/godot/pull/81305)
         ClassCodegenLevel::Lazy
     } else if class.name.ends_with("Server") {
         ClassCodegenLevel::Servers
