@@ -676,7 +676,14 @@ impl<T: GodotClass> Clone for RawGd<T> {
             Self::null()
         } else {
             self.check_rtti("clone");
-            unsafe { Self::from_obj_sys(self.obj as sys::GDExtensionObjectPtr) }
+
+            // Create new object, adopt cached fields.
+            let copy = Self {
+                obj: self.obj,
+                cached_rtti: self.cached_rtti.clone(),
+                cached_storage_ptr: self.cached_storage_ptr.clone(),
+            };
+            copy.with_inc_refcount()
         }
     }
 }
