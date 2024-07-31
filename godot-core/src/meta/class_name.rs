@@ -16,7 +16,7 @@ use sys::Global;
 
 // Box is needed for pointer stability (HashMap insertion may invalidate pointers -- with_capacity() would be an alternative,
 // but we don't know how many classes).
-static CACHED_STRING_NAMES: Global<HashMap<ClassName, Box<StringName>>> = Global::default();
+static CACHED_STRING_NAMES: Global<Vec<Option<Box<StringName>>>> = Global::default();
 
 /// Name of a class registered with Godot.
 ///
@@ -26,6 +26,7 @@ static CACHED_STRING_NAMES: Global<HashMap<ClassName, Box<StringName>>> = Global
 /// This struct is very cheap to copy.
 #[derive(Copy, Clone, Debug)]
 pub struct ClassName {
+    cache_index: usize,
     c_str: &'static CStr,
     // Could use small-array optimization for common string lengths.
     // Possible optimization: could store pre-computed hash. Would need a custom S parameter for HashMap<K, V, S>, see
@@ -46,7 +47,11 @@ impl ClassName {
         assert!(bytes.is_ascii(), "string must be ASCII"); // only half of u8 range
         let c_str = CStr::from_bytes_with_nul(bytes).expect("string must be null-terminated");
 
-        Self { c_str }
+        let mut cache = CACHED_STRING_NAMES.lock();
+        cache.push(None);
+        let cache_index = cache.len() - 1;
+
+        Self { c_str, cache_index }
     }
 
     #[doc(hidden)]
@@ -71,7 +76,14 @@ impl ClassName {
 
     /// Converts the class name to a `GString`.
     pub fn to_gstring(&self) -> GString {
-        self.with_string_name(|s| s.into())
+        let mut cache = CACHED_STRING_NAMES.lock();
+
+        if cache[self.cache_index].is_none() {
+            cache[self.cache_index] = Some(Box::new(self.load_string_name()));
+        }
+
+        let val = cache[self.cache_index].as_ref().unwrap();
+        val.as_ref().into()
     }
 
     /// Converts the class name to a `StringName`.
@@ -81,23 +93,30 @@ impl ClassName {
 
     /// The returned pointer is valid indefinitely, as entries are never deleted from the cache.
     /// Since we use `Box<StringName>`, `HashMap` reallocations don't affect the validity of the StringName.
-    #[doc(hidden)]
     pub fn string_sys(&self) -> sys::GDExtensionConstStringNamePtr {
-        self.with_string_name(|s| s.string_sys())
+        let mut cache = CACHED_STRING_NAMES.lock();
+
+        if cache[self.cache_index].is_none() {
+            cache[self.cache_index] = Some(Box::new(self.load_string_name()));
+        }
+
+        let val = cache[self.cache_index].as_ref().unwrap();
+        val.as_ref().string_sys()
     }
 
     // Takes a closure because the mutex guard protects the reference; so the &StringName cannot leave the scope.
-    fn with_string_name<R>(&self, func: impl FnOnce(&StringName) -> R) -> R {
-        let mut map = CACHED_STRING_NAMES.lock();
+    pub fn with_string_name<R>(&self, func: impl FnOnce(&StringName) -> R) -> R {
+        let mut cache = CACHED_STRING_NAMES.lock();
 
-        let value = map
-            .entry(*self)
-            .or_insert_with(|| Box::new(self.load_string_name()));
+        if cache[self.cache_index].is_none() {
+            cache[self.cache_index] = Some(Box::new(self.load_string_name()));
+        }
 
-        func(value)
+        let val = cache[self.cache_index].as_ref().unwrap();
+        func(val)
     }
 
-    fn load_string_name(&self) -> StringName {
+    pub fn load_string_name(&self) -> StringName {
         StringName::from(self.c_str.to_str().unwrap())
     }
 }
